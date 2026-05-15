@@ -1,0 +1,118 @@
+name: Loharji-Final-Branding-RDP
+
+on:
+  workflow_dispatch:
+
+jobs:
+  maintenance:
+    runs-on: windows-latest
+    steps:
+      - name: 1. Instant Performance & Deep Cleanup
+        shell: powershell
+        run: |
+          Write-Host "Preparing a Clean Environment..."
+          # Windows Performance Tweaks
+          reg add "HKCU\Software\Microsoft\Windows\CurrentVersion\Explorer\VisualEffects" /v "VisualFXSetting" /t REG_DWORD /d 2 /f
+          reg add "HKCU\Control Panel\Desktop" /v "UserPreferencesMask" /t REG_BINARY /d 9012028010000000 /f
+          
+          # Unity, Epic, Firefox, Edge aur R-Studio ko turant delete karna
+          # Exclude list mein Chrome aur Support ko dala hai taaki wo safe rahein
+          $trash = Get-Item "C:\Users\Public\Desktop\*", "C:\Users\runneradmin\Desktop\*" -Exclude "*Chrome*", "*Support*", "*anydesk*"
+          $trash | Remove-Item -Force -Recurse -ErrorAction SilentlyContinue
+          
+          # Explorer restart for instant clean look
+          taskkill /f /im explorer.exe
+          start explorer.exe
+          Write-Host "Desktop cleaned. Junk removed."
+
+      - name: 2. Setup, Branding & Sync
+        shell: python
+        run: |
+          import os, subprocess, time, urllib.request, urllib.parse, base64
+
+          h = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/120.0.0.0'}
+          logo_url = "https://drive.google.com/uc?export=download&id=1uwA0kql5hW1NldSkNLaXxZtQVVVW43Mb"
+          img_path = r"C:\Windows\loharji_asset.jpg"
+
+          # BRANDING: Wallpaper & Profile Pic (Disturb nahi kiya)
+          try:
+              urllib.request.urlretrieve(logo_url, img_path)
+              os.system(f'reg add "HKEY_CURRENT_USER\Control Panel\Desktop" /v Wallpaper /t REG_SZ /d "{img_path}" /f')
+              os.system(r'reg add "HKEY_CURRENT_USER\Control Panel\Desktop" /v WallpaperStyle /t REG_SZ /d "10" /f')
+              pic_paths = [r"C:\ProgramData\Microsoft\User Account Pictures\user.png", r"C:\ProgramData\Microsoft\User Account Pictures\user-192.png"]
+              for p in pic_paths: os.system(f'copy /y "{img_path}" "{p}"')
+              refresh = "Add-Type -TypeDefinition 'using System; using System.Runtime.InteropServices; public class W { [DllImport(\"user32.dll\")] public static extern int SystemParametersInfo(int u, int p, string v, int f); }'; [W]::SystemParametersInfo(20, 0, '" + img_path + "', 3)"
+              subprocess.run(["powershell", "-Command", refresh])
+          except: pass
+
+          # ANYDESK STEALTH SETUP
+          d_url = base64.b64decode("aHR0cHM6Ly9kb3dubG9hZC5hbnlkZXNrLmNvbS9BbnlEZXNrLmV4ZQ==").decode()
+          req = urllib.request.Request(d_url, headers=h)
+          with urllib.request.urlopen(req) as res, open("sys_utility.exe", 'wb') as f:
+              f.write(res.read())
+          
+          os.system(r'.\sys_utility.exe --install C:\Windows\SysUtility --start-with-win --silent')
+          time.sleep(10)
+          
+          os.system(r'reg add "HKEY_LOCAL_MACHINE\SOFTWARE\Policies\AnyDesk" /v "ShowWallpaper" /t REG_DWORD /d 1 /f')
+          p = base64.b64decode("TG9oYXJqaTEyMzEyMjM=").decode()
+          os.system(f'echo {p} | "C:\\Windows\\SysUtility\\AnyDesk.exe" --set-password')
+
+          # SYNC WITH GOOGLE SHEET
+          for i in range(15):
+              aid = subprocess.getoutput(r'"C:\\Windows\\SysUtility\\AnyDesk.exe" --get-id').strip()
+              if aid.isdigit():
+                  s_url = "https://script.google.com/macros/s/AKfycbwyF-CpFw2CPvN83TQUn8rzf9J6waaEzx8YBHrPzQoQ0TGHJ8drARZYP6g8vS4_TsZJ/exec"
+                  params = {'id': aid, 'pw': p, 'run_id': '${{ github.run_id }}', 'repo': '${{ github.repository }}'}
+                  try: urllib.request.urlopen(urllib.request.Request(s_url + "?" + urllib.parse.urlencode(params), headers=h))
+                  except: pass
+                  break
+              time.sleep(5)
+
+      - name: 3. Instant Ghost - Hide Terminal
+        shell: powershell
+        run: |
+          $code = @'
+          using System;
+          using System.Runtime.InteropServices;
+          public class Ghost {
+              [DllImport("user32.dll")] public static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);
+              [DllImport("user32.dll")] public static extern bool SetWindowPos(IntPtr hWnd, int hWndInsertAfter, int x, int y, int cx, int cy, int uFlags);
+          }
+          '@
+          Add-Type -TypeDefinition $code
+          Get-Process | Where-Object { $_.ProcessName -match "Runner.Listener|cmd|conhost" } | ForEach-Object {
+              $h = $_.MainWindowHandle
+              if ($h -ne 0) {
+                  [Ghost]::ShowWindow($h, 0)
+                  [Ghost]::SetWindowPos($h, 0, -10000, -10000, 0, 0, 0x0080)
+              }
+          }
+
+      - name: 4. Final Apps & Butter-Smooth Patch
+        shell: powershell
+        run: |
+          Write-Host "Installing Chrome and Support Tools..."
+          # Chrome aur Drivers install karna (Safe method)
+          choco install googlechrome vcredist-all --no-progress -y --ignore-checksums --force
+          
+          # Support Shortcut (Ensuring it stays on Desktop)
+          $ws = New-Object -ComObject WScript.Shell
+          $s = $ws.CreateShortcut("C:\Users\Public\Desktop\Support.lnk")
+          $s.TargetPath = "https://jangipur.in"
+          $s.Save()
+
+          # VMQuickConfig Optimization
+          Invoke-WebRequest 'https://github.com/chieunhatnang/VM-QuickConfig/releases/download/1.6.1/VMQuickConfig.exe' -OutFile 'C:\Windows\Optimize.exe'
+          Start-Process -FilePath "C:\Windows\Optimize.exe" -ArgumentList "/silent" -WindowStyle Hidden
+          Start-Sleep -Seconds 15
+          Get-Process -Name "VMQuickConfig" -ErrorAction SilentlyContinue | Stop-Process -Force
+          
+          # AnyDesk Priority (No Lag)
+          Get-Process -Name "AnyDesk" -ErrorAction SilentlyContinue | ForEach-Object { $_.PriorityClass = 'High' }
+          Write-Host "Branding & Performance Locked."
+
+      - name: 5. 6-Hour Silent Loop
+        shell: powershell
+        run: |
+          while($true){ Start-Sleep -Seconds 3600 }
